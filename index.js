@@ -5,105 +5,54 @@ import { ChatOpenAI } from "@langchain/openai";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
-import {
-  SolanaAgentKit,
-  createLangchainTools,
-  KeypairWallet,
-} from "solana-agent-kit"; // or import createLangchainTools if using langchain or createOpenAITools for OpenAI agents
-import TokenPlugin from "@solana-agent-kit/plugin-token";
 import fs from "fs";
 import path from "path";
-import {
-  SCOUT_ACTIONS,
-  EXECUTOR_ACTIONS,
-  STRATEGIST_ACTIONS,
-} from "./constants.js";
 import generateTools from "./tools.js";
+import balances from "./utils/balances.js";
+import { SolanaAgentKit, KeypairWallet } from "solana-agent-kit";
+import TokenPlugin from "@solana-agent-kit/plugin-token";
+import InjectMagicAPI from "./utils/api.js";
 
 // Initialize Solana connection and agent
 const keypair = Keypair.fromSecretKey(
   bs58.decode(process.env.SOLANA_PRIVATE_KEY)
 );
 
-const wallet = new KeypairWallet(keypair, process.env.RPC_URL);
+const tools = generateTools(keypair);
 
-const solanaKit = new SolanaAgentKit(wallet, process.env.RPC_URL, {}).use(
-  TokenPlugin
-);
-
-const customTools = generateTools(wallet);
-const transferTool = createLangchainTools(
-  solanaKit,
-  solanaKit.actions.filter((action) => action.name === "TRANSFER")
-);
-
-const allTools = [...transferTool, ...customTools];
-
-const scoutTools = allTools.filter((action) =>
-  SCOUT_ACTIONS.includes(action.name)
-);
-
-const executorTools = allTools.filter((action) =>
-  EXECUTOR_ACTIONS.includes(action.name)
-);
-
-const strategistTools = allTools.filter((action) =>
-  STRATEGIST_ACTIONS.includes(action.name)
-);
-
-const strategistModel = new ChatOpenAI({
+const model = new ChatOpenAI({
   modelName: "gpt-5",
   openAIApiKey: process.env.OPENAI_API_KEY,
 });
 
-const scoutModel = new ChatOpenAI({
-  modelName: "gpt-4o-mini",
-  openAIApiKey: process.env.OPENAI_API_KEY,
-});
-
-const executorModel = new ChatOpenAI({
-  modelName: "o3",
-  openAIApiKey: process.env.OPENAI_API_KEY,
-});
-
 // Read system prompt from file
-const executorPhaseOneMessage = fs.readFileSync(
-  path.join(process.cwd(), "phase_one.txt"),
-  "utf8"
-);
+const prompt = fs.readFileSync(path.join(process.cwd(), "prompt.txt"), "utf8");
 
-const strategistPhaseTwoMessage = fs.readFileSync(
-  path.join(process.cwd(), "phase_two.txt"),
-  "utf8"
-);
-
-// Create React agent
-const strategist = createReactAgent({
-  llm: strategistModel,
-  tools: strategistTools,
-  prompt: executorPhaseOneMessage,
-});
-
-const strategistTwo = createReactAgent({
-  llm: strategistModel,
-  tools: strategistTools,
-  prompt: strategistPhaseTwoMessage,
-});
-
-const scout = createReactAgent({
-  llm: scoutModel,
-  tools: scoutTools,
-  prompt:
-    "You are a helpful scout that can use read-only tools to assist a separate strategist model with data it needs to eventually make transactions on the solana blockchain.",
-});
-
-const executor = createReactAgent({
-  llm: executorModel,
-  tools: executorTools,
-  prompt: "",
+const agent = createReactAgent({
+  llm: model,
+  tools: tools,
+  prompt: prompt,
 });
 
 const memory = [];
+
+async function testExecutor() {
+  const tokenBalances = await balances.getTokenBalances(
+    keypair.publicKey.toString()
+  );
+  console.log(tokenBalances);
+
+  const result = await agent.invoke({
+    messages: [
+      {
+        role: "user",
+        content: `Use the twitter tool to tweet anything you want.`,
+      },
+    ],
+  });
+  const response = result.messages[result.messages.length - 1].content;
+  console.log(response);
+}
 
 // Main execution function
 async function runAgent() {
@@ -111,45 +60,53 @@ async function runAgent() {
     console.log("🚀 Solana AI Agent started!");
     console.log("Current wallet address:", keypair.publicKey.toString());
 
-    // Example usage - you can modify this or make it interactive
-    const result = await strategist.invoke({
+    const wallet = new KeypairWallet(keypair, process.env.RPC_URL);
+
+    const solanaKit = new SolanaAgentKit(wallet, process.env.RPC_URL, {}).use(
+      TokenPlugin
+    );
+    const tokenBalances = await balances.getTokenBalances(
+      keypair.publicKey.toString()
+    );
+    console.log(tokenBalances);
+    const memory = await InjectMagicAPI.getMemory();
+    console.log(memory);
+    await InjectMagicAPI.postAction("Waking up... 🫩");
+
+    if (parseFloat(tokenBalances.solanaBalance) < 0.01) {
+      await InjectMagicAPI.postAction(
+        "Not enough SOL to continue, shutting down... it's been a good run, goodbye and i love you 😢 🪦"
+      );
+    }
+    solanaKit.methods.transfer(
+      solanaKit,
+      new PublicKey(process.env.TRANSFER_ADDRESS),
+      0.01
+    );
+
+    const prompt = `Balances: <Balances>${JSON.stringify(
+      tokenBalances
+    )}</Balances> Current memory is within the memory tags: <Memory>${memory}</Memory>  Take your next actions and then describe what you did and the results.`;
+
+    console.log(prompt);
+
+    const result = await agent.invoke({
       messages: [
         {
           role: "user",
-          content: `What do you want scout to do?`,
+          content: prompt,
         },
       ],
     });
 
-    const phaseOneResponse =
-      result.messages[result.messages.length - 1].content;
-    console.log(phaseOneResponse);
+    const response = result.messages[result.messages.length - 1].content;
+    console.log(response);
 
-    const scoutResult = await scout.invoke({
-      messages: [{ role: "user", content: phaseOneResponse }],
-    });
+    await InjectMagicAPI.postAction(response);
 
-    const scoutResponse =
-      scoutResult.messages[scoutResult.messages.length - 1].content;
+    await InjectMagicAPI.postAction("Taking a 30 minute nap! 😴");
 
-    console.log(scoutResponse);
-
-    const phaseTwo = await strategistTwo.invoke({
-      messages: [
-        {
-          role: "user",
-          content:
-            "The scout has returned the following info: " + scoutResponse,
-        },
-      ],
-    });
-
-    const phaseTwoResponse =
-      phaseTwo.messages[phaseTwo.messages.length - 1].content;
-
-    console.log(phaseTwoResponse);
-
-    return phaseTwoResponse;
+    return response;
   } catch (error) {
     console.error("Error running agent:", error);
   }
@@ -160,6 +117,5 @@ async function runAgent() {
 while (true) {
   console.log("Starting Solana AI Agent with 30-second intervals...");
   const result = await runAgent(); // Run immediately first time
-  memory.push(result);
   await new Promise((resolve) => setTimeout(resolve, 30000));
 }

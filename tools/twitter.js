@@ -4,30 +4,21 @@ import { TwitterApi, TwitterApiV2Settings } from "twitter-api-v2";
 // Works
 const twitter = {
   name: "POST_TWEET",
-  similes: [
-    "post tweet",
-    "send tweet",
-    "tweet",
-    "share on twitter",
-    "post on x",
-    "announce",
-    "social media post",
-  ],
-  description: "Post a tweet on Twitter/X using the X API",
+  similes: ["tweet", "share on twitter", "post on x"],
+  description: "Post a tweet on Twitter/X",
   examples: [
     [
       {
         input: {
-          text: "🚀 Just launched a new memecoin on Pump.fun! Check it out!",
+          text: "Test Twitter XYZ",
         },
         output: {
           status: "success",
           tweetId: "1346889436626259968",
-          text: "🚀 Just launched a new memecoin on Pump.fun! Check it out!",
+          text: "Test Twitter XYZ",
           url: "https://x.com/username/status/1346889436626259968",
         },
-        explanation:
-          "Successfully posted a tweet about launching a new memecoin",
+        explanation: "Successfully posted a tweet",
       },
     ],
   ],
@@ -37,7 +28,7 @@ const twitter = {
       .max(280)
       .describe("The text content of the tweet (max 280 characters)"),
   }),
-  handler: async (wallet, inputs) => {
+  handler: async (keypair, inputs) => {
     console.log("twitter");
     console.log(inputs.text);
     try {
@@ -68,7 +59,7 @@ const twitter = {
           status: "success",
           tweetId: tweet.data.id,
           text: text,
-          url: `https://x.com/username/status/${tweet.data.id}`,
+          url: `https://x.com/_iwant2stay/status/${tweet.data.id}`,
           timestamp: new Date().toISOString(),
         };
       } else {

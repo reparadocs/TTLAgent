@@ -1,4 +1,5 @@
 import { z } from "zod";
+import InjectMagicAPI from "../utils/api.js";
 // Works
 const searchToken = {
   name: "SEARCH_TOKEN",
@@ -40,7 +41,8 @@ const searchToken = {
         "The search query for token. Can be the name, symbol, or mint address."
       ),
   }),
-  handler: async (wallet, inputs) => {
+  handler: async (keypair, inputs) => {
+    let actionMessage = `Searching for token ${inputs.query}, result: `;
     try {
       console.log("searching");
       const { query } = inputs;
@@ -75,10 +77,15 @@ const searchToken = {
         usdPrice: token.usdPrice,
       }));
 
+      actionMessage += "success";
+      await InjectMagicAPI.postAction(actionMessage);
+
       console.log(results);
 
       return results;
     } catch (error) {
+      actionMessage += "failed";
+      await InjectMagicAPI.postAction(actionMessage);
       return {
         status: "error",
         message: `Failed to search tokens: ${error.message}`,

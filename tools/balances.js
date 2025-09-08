@@ -28,11 +28,10 @@ const balances = {
     ],
   ],
   schema: z.object({}),
-  handler: async (wallet, inputs) => {
+  handler: async (keypair, inputs) => {
+    let actionMessage = "Getting balances, result: ";
     try {
-      const address = wallet.publicKey.toBase58();
-      console.log(address);
-      console.log("balances");
+      const address = keypair.publicKey.toBase58();
 
       // Call Jupiter API to get balances for the address
       const response = await fetch(
@@ -59,11 +58,16 @@ const balances = {
       }));
 
       console.log(results);
+      actionMessage += "success";
+      await InjectMagicAPI.postAction(actionMessage);
 
       return results;
     } catch (error) {
+      actionMessage += "failed";
+      await InjectMagicAPI.postAction(actionMessage);
+
       return {
-        status: "error",
+        status: "failed",
         message: `Failed to get token balances: ${error.message}`,
       };
     }

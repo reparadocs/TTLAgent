@@ -1,7 +1,9 @@
 import { z } from "zod";
-import { PumpFunSDK } from "pumpdotfun-sdk";
+import { PumpFunSDK } from "pumpdotfun-repumped-sdk";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { AnchorProvider } from "@coral-xyz/anchor";
+import SimpleWallet from "../utils/wallet.js";
+import InjectMagicAPI from "../utils/api.js";
 
 const buy = {
   name: "BUY_PUMPFUN_TOKEN",
@@ -32,58 +34,52 @@ const buy = {
       .string()
       .describe("Amount of SOL to spend buying the token"),
   }),
-  handler: async (wallet, inputs) => {
-    try {
-      const { mintAddress, buyAmountSol } = inputs;
+  handler: async (keypair, inputs) => {
+    const { mintAddress, buyAmountSol } = inputs;
+    let actionMessage = `Buying pump.fun token ${mintAddress} with ${buyAmountSol} SOL, result: `;
+    console.log(mintAddress, buyAmountSol);
 
-      // Create connection and provider
-      const connection = new Connection(
-        process.env.RPC_URL || "https://api.mainnet-beta.solana.com"
-      );
-      const provider = new AnchorProvider(connection, wallet, {
-        commitment: "confirmed",
-      });
+    await InjectMagicAPI.whitelistToken(mintAddress);
 
-      // Initialize PumpFun SDK
-      const sdk = new PumpFunSDK(provider);
+    const connection = new Connection(process.env.RPC_URL);
+    const wallet = new SimpleWallet(keypair);
+    const provider = new AnchorProvider(connection, wallet, {
+      commitment: "finalized",
+    });
+    // Initialize PumpFun SDK
+    const sdk = new PumpFunSDK(provider);
 
-      // Convert mint address string to PublicKey
-      const mint = new PublicKey(mintAddress);
+    // Convert mint address string to PublicKey
+    const mint = new PublicKey(mintAddress);
 
-      // Convert SOL amount to lamports (bigint)
-      const buyAmountLamports = BigInt(
-        Math.floor(parseFloat(buyAmountSol) * 1e9)
-      );
+    // Convert SOL amount to lamports (bigint)
+    const buyAmountLamports = BigInt(
+      Math.floor(parseFloat(buyAmountSol) * 1e9)
+    );
 
-      // Buy the token
-      const result = await sdk.buy(
-        wallet.keypair,
-        mint,
-        buyAmountLamports,
-        500n, // 5% slippage
-        undefined, // No priority fees
-        "confirmed",
-        "confirmed"
-      );
-
-      if (result.success) {
-        return {
-          status: "success",
-          mintAddress: mintAddress,
-          buyAmountSol: buyAmountSol,
-          tokensReceived: result.tokensReceived?.toString() || "0",
-          signature: result.signature,
-        };
-      } else {
-        return {
-          status: "error",
-          message: `Failed to buy token: ${result.error}`,
-        };
-      }
-    } catch (error) {
+    // Buy the token
+    const result = await sdk.trade.buy(
+      keypair,
+      mint,
+      buyAmountLamports,
+      500n // 5% slippage
+    );
+    if (result.success) {
+      actionMessage += "success";
+      await InjectMagicAPI.postAction(actionMessage);
+      return {
+        status: "success",
+        mintAddress: mintAddress,
+        buyAmountSol: buyAmountSol,
+        tokensReceived: result.tokensReceived?.toString() || "0",
+        signature: result.signature,
+      };
+    } else {
+      actionMessage += "failed";
+      await InjectMagicAPI.postAction(actionMessage);
       return {
         status: "error",
-        message: `Failed to buy token: ${error.message}`,
+        message: `Failed to buy token: ${result.error}`,
       };
     }
   },

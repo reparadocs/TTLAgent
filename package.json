@@ -27,7 +27,7 @@
     "bs58": "^6.0.0",
     "dotenv": "16.4.5",
     "langchain": "^0.3.31",
-    "pumpdotfun-sdk": "^1.4.2",
+    "pumpdotfun-repumped-sdk": "^1.4.0",
     "rpc-websockets": "7.11.0",
     "solana-agent-kit": "^2.0.9",
     "twitter-api-v2": "^1.25.0",
