@@ -14,7 +14,17 @@ import TokenPlugin from "@solana-agent-kit/plugin-token";
 import InjectMagicAPI from "./utils/api.js";
 import SimpleWallet from "./utils/wallet.js";
 import postTweet from "./utils/twitter.js";
-import { tr } from "zod/v4/locales";
+
+const env = process.env;
+
+async function checkFileExists(filePath) {
+  try {
+    await fs.access(filePath, fs.constants.F_OK); // F_OK checks for existence
+    return true; // File exists
+  } catch (error) {
+    return false; // File does not exist or other error
+  }
+}
 
 // Initialize Solana connection and agent
 const keypair = Keypair.fromSecretKey(
@@ -28,16 +38,28 @@ const model = new ChatOpenAI({
   openAIApiKey: process.env.OPENAI_API_KEY,
 });
 
-// Read system prompt from file
-const prompt = fs.readFileSync(
-  path.join(process.cwd(), "prompts/agent_prompt.txt"),
-  "utf8"
+const promptsExists = await checkFileExists(
+  path.join(process.cwd(), "prompts/agent_prompt.txt")
 );
 
-const twitterPrompt = fs.readFileSync(
-  path.join(process.cwd(), "prompts/twitter_prompt.txt"),
-  "utf8"
-);
+let prompt = "",
+  twitterPrompt = "";
+if (promptsExists) {
+  // Read system prompt from file
+
+  prompt = fs.readFileSync(
+    path.join(process.cwd(), "prompts/agent_prompt.txt"),
+    "utf8"
+  );
+
+  twitterPrompt = fs.readFileSync(
+    path.join(process.cwd(), "prompts/twitter_prompt.txt"),
+    "utf8"
+  );
+} else {
+  prompt = env.AGENT_PROMPT;
+  twitterPrompt = env.TWITTER_PROMPT;
+}
 
 const agent = createReactAgent({
   llm: model,
