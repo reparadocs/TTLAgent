@@ -1,8 +1,5 @@
 providers = ["...", "python", "node"]
 
-[phases.setup]
-nixPkgs = ["pkgs.python311", "pkgs.nodejs_22"]
-
 [phases.build]
 # It's better practice to list commands separately
 cmds = [
