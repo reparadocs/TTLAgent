@@ -27,10 +27,12 @@ const createAndBuy = {
           tokenName: "MyMemecoin",
           tokenSymbol: "MEME",
           buyAmountSol: "0.1",
+          newSolBalance: 5.43,
           signature: "XYZ789...",
+          tokenBalance: "1000",
         },
         explanation:
-          "Successfully created and bought a new token called MyMemecoin",
+          "Successfully created and bought a new token called MyMemecoin resulting in a new SOL balance of 5.43 and 1000 MyMemecoin tokens",
       },
     ],
   ],
@@ -45,7 +47,7 @@ const createAndBuy = {
   handler: async (keypair, inputs) => {
     const { tokenName, tokenSymbol, tokenDescription, buyAmountSol } = inputs;
 
-    let actionMessage = `Creating pump.fun token ${tokenName} with symbol ${tokenSymbol} and description ${tokenDescription} and buying it with ${buyAmountSol} SOL, result: `;
+    let actionMessage = `[TOOL] Creating pump.fun token ${tokenName} with symbol ${tokenSymbol} and description ${tokenDescription} and buying it with ${buyAmountSol} SOL, result: `;
     try {
       // Create connection and provider
       const connection = new Connection(process.env.RPC_URL);
@@ -59,7 +61,7 @@ const createAndBuy = {
 
       // Generate new mint keypair for the token
       const mint = Keypair.generate();
-      const imagePath = path.join(process.cwd(), "images", "mint.jpeg");
+      const imagePath = path.join(process.cwd(), "images", "mint.jpg");
 
       // read the file into a buffer
       const data = fs.readFileSync(imagePath);
@@ -72,8 +74,8 @@ const createAndBuy = {
         name: tokenName,
         symbol: tokenSymbol,
         description: tokenDescription,
-        website: "https://rishabhegde.com", //TODO: change
-        file: blob, // Include image as Blob if available
+        website: "https://ttl.injectmagic.com",
+        file: blob,
       };
 
       // Convert SOL amount to lamports (bigint)
@@ -91,16 +93,26 @@ const createAndBuy = {
       );
 
       if (result.success) {
-        actionMessage += "success";
+        const finalToken = await wallet.getTokenBalance(
+          keypair.publicKey.toString(),
+          mint.publicKey.toBase58()
+        );
+
+        actionMessage += "success. Received " + finalToken + " tokens";
+        console.log(result);
+        const finalSol = await wallet.getBalance();
+
         await InjectMagicAPI.postAction(actionMessage);
         await InjectMagicAPI.whitelistToken(mint.publicKey.toBase58());
 
         return {
           status: "success",
           mintAddress: mint.publicKey.toBase58(),
+          newSolBalance: finalSol,
           tokenName: tokenName,
           tokenSymbol: tokenSymbol,
           buyAmountSol: buyAmountSol,
+          tokenBalance: finalToken,
           signature: result.signature,
         };
       } else {

@@ -163,6 +163,13 @@ class HeliusBalances {
       };
     }
   }
+
+  async getTokenBalance(ownerAddress, _token) {
+    const result = await this.getTokenBalances(ownerAddress);
+    const _ret = result.tokenBalances.find((token) => token.mint === _token);
+    console.log(_ret);
+    return _ret ? _ret.balance : "0";
+  }
 }
 
 // Create and export a singleton instance

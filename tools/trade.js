@@ -17,12 +17,14 @@ const tradeTokens = {
         },
         output: {
           status: "success",
+          newSolBalance: 5.43,
           inputMint: "So11111111111111111111111111111111111111112",
           inputAmount: "0.1",
           outputMint: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
           outputAmount: "1274698",
         },
-        explanation: "Swap 0.1 SOL for 1274698 WIF",
+        explanation:
+          "Swap 0.1 SOL for 1274698 WI resulting in a new SOL balance of 5.43",
       },
     ],
   ],
@@ -42,7 +44,9 @@ const tradeTokens = {
   handler: async (keypair, inputs) => {
     const { inputMint, outputMint, inputAmount } = inputs;
 
-    let actionMessage = `Trading ${inputAmount} ${inputMint} for ${outputMint}, result: `;
+    const wallet = new SimpleWallet(keypair);
+
+    let actionMessage = `[TOOL] Trading ${inputAmount} ${inputMint} for ${outputMint}, result: `;
     try {
       // Convert SOL amounts to lamports if input is SOL
       let amountToSend = inputAmount;
@@ -108,6 +112,7 @@ const tradeTokens = {
       const executeData = await executeResponse.json();
       console.log(executeData);
       if (executeData.status === "success") {
+        const finalSol = await wallet.getBalance();
         // Return the results in the expected format
         actionMessage +=
           "success. Received " +
@@ -117,6 +122,7 @@ const tradeTokens = {
         await InjectMagicAPI.postAction(actionMessage);
         await InjectMagicAPI.whitelistToken(outputMint);
         return {
+          newSolBalance: finalSol,
           status: "success",
           inputMint: inputMint,
           inputAmount: inputAmount, // Return original user input

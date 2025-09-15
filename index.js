@@ -12,6 +12,9 @@ import balances from "./utils/balances.js";
 import { SolanaAgentKit, KeypairWallet } from "solana-agent-kit";
 import TokenPlugin from "@solana-agent-kit/plugin-token";
 import InjectMagicAPI from "./utils/api.js";
+import SimpleWallet from "./utils/wallet.js";
+import postTweet from "./utils/twitter.js";
+import { tr } from "zod/v4/locales";
 
 // Initialize Solana connection and agent
 const keypair = Keypair.fromSecretKey(
@@ -26,7 +29,15 @@ const model = new ChatOpenAI({
 });
 
 // Read system prompt from file
-const prompt = fs.readFileSync(path.join(process.cwd(), "prompt.txt"), "utf8");
+const prompt = fs.readFileSync(
+  path.join(process.cwd(), "prompts/agent_prompt.txt"),
+  "utf8"
+);
+
+const twitterPrompt = fs.readFileSync(
+  path.join(process.cwd(), "prompts/twitter_prompt.txt"),
+  "utf8"
+);
 
 const agent = createReactAgent({
   llm: model,
@@ -34,7 +45,11 @@ const agent = createReactAgent({
   prompt: prompt,
 });
 
-const memory = [];
+const twitterAgent = createReactAgent({
+  llm: model,
+  tools: [],
+  prompt: twitterPrompt,
+});
 
 async function testExecutor() {
   const tokenBalances = await balances.getTokenBalances(
@@ -61,6 +76,14 @@ async function runAgent() {
     console.log("Current wallet address:", keypair.publicKey.toString());
 
     const wallet = new KeypairWallet(keypair, process.env.RPC_URL);
+    const simpleWallet = new SimpleWallet(keypair);
+
+    const balance = await balances.getTokenBalance(
+      keypair.publicKey.toString(),
+      "5wyFzb7uA825LpRZWSGf8a9s2Arki6rGqcnsiU1j1QWz"
+    );
+    console.log("testing token balance");
+    console.log(balance);
 
     const solanaKit = new SolanaAgentKit(wallet, process.env.RPC_URL, {}).use(
       TokenPlugin
@@ -71,12 +94,16 @@ async function runAgent() {
     console.log(tokenBalances);
     const memory = await InjectMagicAPI.getMemory();
     console.log(memory);
-    await InjectMagicAPI.postAction("Waking up... 🫩");
+    await InjectMagicAPI.postAction("[SYSTEM] Checking balance...");
 
     if (parseFloat(tokenBalances.solanaBalance) < 0.01) {
+      const endSol = await simpleWallet.getRawBalance();
+      await InjectMagicAPI.postBalance(endSol);
+
       await InjectMagicAPI.postAction(
-        "Not enough SOL to continue, shutting down... it's been a good run, goodbye and i love you 😢 🪦"
+        "[SYSTEM] ERROR: Not enough SOL to pay for inference, has TTL entered it's eternal slumber? Trying again in 30 minutes..."
       );
+      return;
     }
     solanaKit.methods.transfer(
       solanaKit,
@@ -84,17 +111,21 @@ async function runAgent() {
       0.01
     );
 
-    const prompt = `Balances: <Balances>${JSON.stringify(
-      tokenBalances
-    )}</Balances> Current memory is within the memory tags: <Memory>${memory}</Memory>  Take your next actions and then describe what you did and the results.`;
+    await InjectMagicAPI.postAction(
+      "[SYSTEM] Account debited, waking up TTL..."
+    );
 
-    console.log(prompt);
+    const userMessage = `Balances: <Balances>${JSON.stringify(
+      tokenBalances
+    )}</Balances> Current memory is within the memory tags: <Memory>${memory}</Memory> The time is ${new Date().toISOString()} Take your next actions and then describe what you did and the results.`;
+
+    console.log(userMessage);
 
     const result = await agent.invoke({
       messages: [
         {
           role: "user",
-          content: prompt,
+          content: userMessage,
         },
       ],
     });
@@ -102,9 +133,86 @@ async function runAgent() {
     const response = result.messages[result.messages.length - 1].content;
     console.log(response);
 
-    await InjectMagicAPI.postAction(response);
+    const finalSol = await simpleWallet.getRawBalance();
+    await InjectMagicAPI.postBalance(finalSol);
 
-    await InjectMagicAPI.postAction("Taking a 30 minute nap! 😴");
+    await InjectMagicAPI.postAction("[TTL] " + response, true);
+
+    await InjectMagicAPI.postAction(
+      "[SYSTEM] TTL finished running, its existence might continue in 30 minutes..."
+    );
+
+    const twitterLogs = await InjectMagicAPI.getTwitterLogs();
+
+    console.log(twitterLogs);
+
+    let actionsSinceLastTweet = [];
+
+    // Find the latest twitterLog and check if it was within 2 hours
+    if (twitterLogs && twitterLogs.length > 0) {
+      // Sort by timestamp to get the latest one
+      const sortedLogs = twitterLogs.sort(
+        (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+      );
+      const latestLog = sortedLogs[0];
+      const latestLogTime = new Date(latestLog.timestamp);
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+
+      console.log("Latest Twitter Log:", latestLog);
+      console.log("Latest Log Time:", latestLogTime.toISOString());
+      console.log("Two Hours Ago:", twoHoursAgo.toISOString());
+
+      if (latestLogTime < thirtyMinutesAgo) {
+        //TODO: Change back to 2 hours
+        console.log("📋 Fetching all journals since latest tweet...");
+        try {
+          actionsSinceLastTweet = await InjectMagicAPI.getActions({
+            sinceTimestamp: latestLogTime,
+            isJournal: true,
+          });
+          console.log(
+            `Found ${actionsSinceLastTweet.length} journals since last tweet:`
+          );
+          actionsSinceLastTweet.forEach((action, index) => {
+            console.log(`${index + 1}. [${action.timestamp}] ${action.text}`);
+          });
+        } catch (error) {
+          console.error("Failed to fetch actions:", error.message);
+        }
+      }
+    } else {
+      actionsSinceLastTweet = await InjectMagicAPI.getActions({
+        isJournal: true,
+      });
+    }
+
+    console.log(actionsSinceLastTweet);
+
+    if (actionsSinceLastTweet.length > 0) {
+      console.log("Tweeting");
+      const tweetResult = await twitterAgent.invoke({
+        messages: [
+          {
+            role: "user",
+            content: `Here are the actions you've taken: ${actionsSinceLastTweet
+              .map((action) => action.text)
+              .join("\n")} What would you like to tweet?`,
+          },
+        ],
+      });
+      console.log(tweetResult);
+      const tweetResponse =
+        tweetResult.messages[tweetResult.messages.length - 1].content;
+      const tweet = await postTweet(tweetResponse);
+      if (tweet.status === "success") {
+        console.log("Posted tweet");
+        await InjectMagicAPI.postTwitterLog(tweetResponse);
+        await InjectMagicAPI.postAction("[TOOL] Posted tweet: " + tweet.url);
+      } else {
+        console.error("Failed to tweet");
+      }
+    }
 
     return response;
   } catch (error) {
@@ -113,9 +221,15 @@ async function runAgent() {
 }
 
 // Run the agent every 30 seconds
-
 while (true) {
-  console.log("Starting Solana AI Agent with 30-second intervals...");
-  const result = await runAgent(); // Run immediately first time
-  await new Promise((resolve) => setTimeout(resolve, 30000));
+  try {
+    console.log("Starting Solana AI Agent with 30-second intervals...");
+    const result = await runAgent(); // Run immediately first time
+    console.log("Agent run completed successfully");
+  } catch (error) {
+    console.error("Agent run failed, continuing to next iteration:", error);
+  }
+
+  console.log("Waiting 300 seconds before next run...");
+  await new Promise((resolve) => setTimeout(resolve, 300000));
 }

@@ -72,8 +72,8 @@ class InjectMagicAPI {
    * @param {string} text - The action text to post
    * @returns {Promise<object>} The response data
    */
-  async postAction(text) {
-    return this.post("actions/", { text });
+  async postAction(text, isJournal = false) {
+    return this.post("actions/", { text, is_journal: isJournal });
   }
 
   /**
@@ -128,6 +128,66 @@ class InjectMagicAPI {
     const arr = await response.json();
     const memory = arr.memory;
     return memory;
+  }
+
+  async postBalance(balance) {
+    return this.post("balance/", { balance });
+  }
+
+  async postTwitterLog(log) {
+    return this.post("twitter-log/", { log });
+  }
+
+  async getTwitterLogs() {
+    const response = await fetch(
+      "https://api.injectmagic.com/sisyphus/twitter-logs/",
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Token ${this.apiKey}`,
+        },
+      }
+    );
+    if (!response.ok) {
+      throw new Error(`Inject Magic API error: ${response.status}`);
+    }
+    const arr = await response.json();
+    return arr;
+  }
+
+  async getActions({ sinceTimestamp = null, isJournal = false } = {}) {
+    let url = "https://api.injectmagic.com/sisyphus/actions/";
+    const params = [];
+
+    // Add is_journal parameter if requested
+    if (isJournal) {
+      params.push("is_journal=true");
+    }
+
+    // Add timestamp filter if provided
+    if (sinceTimestamp) {
+      const timestamp = new Date(sinceTimestamp).toISOString();
+      params.push(`after=${encodeURIComponent(timestamp)}`);
+    }
+
+    // Append parameters to URL if any exist
+    if (params.length > 0) {
+      url += "?" + params.join("&");
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Token ${this.apiKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Inject Magic API error: ${response.status}`);
+    }
+
+    const arr = await response.json();
+    return arr;
   }
 }
 

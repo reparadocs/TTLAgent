@@ -42,7 +42,7 @@ const searchToken = {
       ),
   }),
   handler: async (keypair, inputs) => {
-    let actionMessage = `Searching for token ${inputs.query}, result: `;
+    let actionMessage = `[TOOL] Searching for token ${inputs.query}, result: `;
     try {
       console.log("searching");
       const { query } = inputs;

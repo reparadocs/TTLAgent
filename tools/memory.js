@@ -32,7 +32,7 @@ const buy = {
     const { memory } = inputs;
     const response = await InjectMagicAPI.replaceMemory(memory);
     if (response.success) {
-      await InjectMagicAPI.postAction("Edit memory to " + memory);
+      await InjectMagicAPI.postAction("[TOOL] Edit memory to: " + memory);
       return {
         status: "success",
       };

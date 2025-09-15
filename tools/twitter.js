@@ -59,7 +59,7 @@ const twitter = {
           status: "success",
           tweetId: tweet.data.id,
           text: text,
-          url: `https://x.com/_iwant2stay/status/${tweet.data.id}`,
+          url: `https://x.com/ttlagent/status/${tweet.data.id}`,
           timestamp: new Date().toISOString(),
         };
       } else {

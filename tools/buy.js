@@ -21,10 +21,12 @@ const buy = {
           status: "success",
           mintAddress: "ABC123...",
           buyAmountSol: "0.05",
-          tokensReceived: "1000000",
+          newTokenBalance: "1000000",
+          newSolBalance: 5.43,
           signature: "XYZ789...",
         },
-        explanation: "Successfully bought tokens with 0.05 SOL",
+        explanation:
+          "Successfully bought ABC123... mint tokens with 0.05 SOL resulting in a new SOL balance of 5.43 and new ABC123... mint token balance of 1000000",
       },
     ],
   ],
@@ -36,7 +38,7 @@ const buy = {
   }),
   handler: async (keypair, inputs) => {
     const { mintAddress, buyAmountSol } = inputs;
-    let actionMessage = `Buying pump.fun token ${mintAddress} with ${buyAmountSol} SOL, result: `;
+    let actionMessage = `[TOOL] Buying pump.fun token ${mintAddress} with ${buyAmountSol} SOL, result: `;
     console.log(mintAddress, buyAmountSol);
 
     await InjectMagicAPI.whitelistToken(mintAddress);
@@ -64,14 +66,27 @@ const buy = {
       buyAmountLamports,
       500n // 5% slippage
     );
+
+    const balance = await wallet.getTokenBalance(results[0].mintAddress);
+    console.log("testing token balance");
+    console.log(balance);
     if (result.success) {
-      actionMessage += "success";
+      const finalToken = await wallet.getTokenBalance(
+        keypair.publicKey.toString(),
+        mintAddress
+      );
+      actionMessage +=
+        "success. New token balance is " + finalToken + " tokens";
+      console.log(result);
+      const finalSol = await wallet.getBalance();
+
       await InjectMagicAPI.postAction(actionMessage);
       return {
         status: "success",
+        newSolBalance: finalSol,
         mintAddress: mintAddress,
         buyAmountSol: buyAmountSol,
-        tokensReceived: result.tokensReceived?.toString() || "0",
+        newTokenBalance: finalToken,
         signature: result.signature,
       };
     } else {

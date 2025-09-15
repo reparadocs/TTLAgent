@@ -27,9 +27,11 @@ const sell = {
           mintAddress: "ABC123...",
           sellAmount: "1000",
           solReceived: 0.06,
+          newSolBalance: 5.43,
           signature: "XYZ789...",
         },
-        explanation: "Successfully sold 1,000 ABC123... tokens for 0.06 SOL",
+        explanation:
+          "Successfully sold 1,000 ABC123... tokens for 0.06 SOL resulting in a new SOL balance of 5.43",
       },
     ],
   ],
@@ -40,7 +42,7 @@ const sell = {
   handler: async (keypair, inputs) => {
     const { mintAddress, sellAmount } = inputs;
 
-    let actionMessage = `Selling pump.fun token ${inputs.mintAddress} with ${inputs.sellAmount} tokens, result: `;
+    let actionMessage = `[TOOL] Selling pump.fun token ${inputs.mintAddress} with ${inputs.sellAmount} tokens, result: `;
     try {
       console.log(mintAddress, sellAmount);
 
@@ -50,7 +52,7 @@ const sell = {
         commitment: "finalized",
       });
 
-      const initialSol = await connection.getBalance(wallet.publicKey);
+      const initialSol = await wallet.getBalance();
 
       // Initialize PumpFun SDK
       const sdk = new PumpFunSDK(provider);
@@ -74,16 +76,9 @@ const sell = {
       console.log(result);
 
       if (result.success) {
-        console.log(result.results.meta);
-        console.log(result.results.meta.status);
-        console.log(result.results.meta.logMessages);
-        console.log(result.results.meta.preBalances);
-        console.log(result.results.meta.postBalances);
-        console.log(result.results.meta.preTokenBalances);
-        console.log(result.results.meta.postTokenBalances);
-
-        const finalSol = await connection.getBalance(wallet.publicKey);
-        const solReceived = ((finalSol - initialSol) / 1e9).toFixed(9);
+        const finalSol = await wallet.getRawBalance();
+        const finalSolFormatted = finalSol / 1e9;
+        const solReceived = (finalSol - initialSol) / 1e9;
 
         actionMessage += "success. Received " + solReceived + " SOL";
         await InjectMagicAPI.postAction(actionMessage);
@@ -92,6 +87,7 @@ const sell = {
           mintAddress: mintAddress,
           sellAmount: sellAmount,
           solReceived: solReceived,
+          newSolBalance: finalSolFormatted,
           signature: result.signature,
         };
       } else {
