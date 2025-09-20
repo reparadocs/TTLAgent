@@ -96,7 +96,7 @@ const generateTools = (keypair) => {
       t.schema
     )
   );
-  return [...customTools, ...transferTool];
+  return [...customTools, transferTool];
 };
 
 export default generateTools;
