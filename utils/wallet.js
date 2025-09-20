@@ -29,19 +29,6 @@ class SimpleWallet {
     const balance = await this.getRawBalance();
     return balance / 1e9;
   }
-
-  async getTokenBalance(mint) {
-    const balance = await this.connection.getTokenAccountsByOwner(
-      this.publicKey,
-      {
-        mint,
-      }
-    );
-    console.log(balance.value[0].account);
-    const ret = balance.value[0].account.data.parsed.info.tokenAmount.uiAmount;
-    console.log(ret);
-    return ret;
-  }
 }
 
 export default SimpleWallet;

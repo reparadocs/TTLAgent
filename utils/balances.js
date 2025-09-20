@@ -28,7 +28,7 @@ class HeliusBalances {
 
       const defaultOptions = {
         page: 1,
-        limit: 50,
+        limit: 1000,
         sortBy: {
           sortBy: "created",
           sortDirection: "desc",
@@ -101,7 +101,7 @@ class HeliusBalances {
    * @param {string} ownerAddress - The wallet address to query
    * @returns {Promise<object>} Simplified balance data
    */
-  async getTokenBalances(ownerAddress) {
+  async getTokenBalances(ownerAddress, whitelistToken = null) {
     try {
       const result = await this.getAssetsByOwner(ownerAddress, {
         options: {
@@ -119,7 +119,10 @@ class HeliusBalances {
         return result;
       }
 
-      const whitelistedTokens = await InjectMagicAPI.getWhitelistedTokens();
+      const _whitelistedTokens = await InjectMagicAPI.getWhitelistedTokens();
+      const whitelistedTokens = whitelistToken
+        ? [whitelistToken, ..._whitelistedTokens]
+        : _whitelistedTokens;
 
       const { items, nativeBalance } = result.data;
 
@@ -165,9 +168,8 @@ class HeliusBalances {
   }
 
   async getTokenBalance(ownerAddress, _token) {
-    const result = await this.getTokenBalances(ownerAddress);
+    const result = await this.getTokenBalances(ownerAddress, _token);
     const _ret = result.tokenBalances.find((token) => token.mint === _token);
-    console.log(_ret);
     return _ret ? _ret.balance : "0";
   }
 }

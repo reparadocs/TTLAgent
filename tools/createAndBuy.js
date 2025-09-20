@@ -6,6 +6,7 @@ import fs from "fs";
 import path from "path";
 import SimpleWallet from "../utils/wallet.js";
 import InjectMagicAPI from "../utils/api.js";
+import balances from "../utils/balances.js";
 
 const createAndBuy = {
   name: "LAUNCH_PUMPFUN_TOKEN",
@@ -46,89 +47,85 @@ const createAndBuy = {
   }),
   handler: async (keypair, inputs) => {
     const { tokenName, tokenSymbol, tokenDescription, buyAmountSol } = inputs;
-
+    console.log("hello?");
     let actionMessage = `[TOOL] Creating pump.fun token ${tokenName} with symbol ${tokenSymbol} and description ${tokenDescription} and buying it with ${buyAmountSol} SOL, result: `;
-    try {
-      // Create connection and provider
-      const connection = new Connection(process.env.RPC_URL);
-      const wallet = new SimpleWallet(keypair);
-      const provider = new AnchorProvider(connection, wallet, {
-        commitment: "finalized",
-      });
 
-      // Initialize PumpFun SDK
-      const sdk = new PumpFunSDK(provider);
+    // Create connection and provider
+    const connection = new Connection(process.env.RPC_URL);
+    const wallet = new SimpleWallet(keypair);
+    const provider = new AnchorProvider(connection, wallet, {
+      commitment: "finalized",
+    });
 
-      // Generate new mint keypair for the token
-      const mint = Keypair.generate();
-      const imagePath = path.join(process.cwd(), "images", "mint.jpg");
+    // Initialize PumpFun SDK
+    const sdk = new PumpFunSDK(provider);
 
-      // read the file into a buffer
-      const data = fs.readFileSync(imagePath);
+    // Generate new mint keypair for the token
+    const mint = Keypair.generate();
+    const imagePath = path.join(process.cwd(), "images", "mint.jpg");
 
-      // wrap it in a blob
-      const blob = new Blob([data], { type: "image/png" });
+    // read the file into a buffer
+    const data = fs.readFileSync(imagePath);
 
-      // Create token metadata
-      const createTokenMetadata = {
-        name: tokenName,
-        symbol: tokenSymbol,
-        description: tokenDescription,
-        website: "https://ttl.injectmagic.com",
-        file: blob,
+    // wrap it in a blob
+    const blob = new Blob([data], { type: "image/png" });
+
+    // Create token metadata
+    const createTokenMetadata = {
+      name: tokenName,
+      symbol: tokenSymbol,
+      description: tokenDescription,
+      website: "https://ttl.injectmagic.com",
+      file: blob,
+    };
+
+    // Convert SOL amount to lamports (bigint)
+    const buyAmountLamports = BigInt(
+      Math.floor(parseFloat(buyAmountSol) * 1e9)
+    );
+
+    // Create and buy the token
+    const result = await sdk.trade.createAndBuy(
+      keypair, // Use keypair directly instead of wallet.keypair
+      mint,
+      createTokenMetadata,
+      buyAmountLamports,
+      500n // 5% slippage
+    );
+
+    console.log(mint.publicKey.toBase58());
+
+    if (result.success) {
+      console.log(mint.publicKey.toBase58());
+      const finalToken = await balances.getTokenBalance(
+        keypair.publicKey.toString(),
+        mint.publicKey.toString()
+      );
+
+      actionMessage += "success. Received " + finalToken + " tokens";
+      console.log(result);
+      const finalSol = await wallet.getBalance();
+
+      await InjectMagicAPI.postAction(actionMessage);
+      await InjectMagicAPI.whitelistToken(mint.publicKey.toBase58());
+
+      return {
+        status: "success",
+        mintAddress: mint.publicKey.toBase58(),
+        newSolBalance: finalSol,
+        tokenName: tokenName,
+        tokenSymbol: tokenSymbol,
+        buyAmountSol: buyAmountSol,
+        tokenBalance: finalToken,
+        signature: result.signature,
       };
-
-      // Convert SOL amount to lamports (bigint)
-      const buyAmountLamports = BigInt(
-        Math.floor(parseFloat(buyAmountSol) * 1e9)
-      );
-
-      // Create and buy the token
-      const result = await sdk.trade.createAndBuy(
-        keypair, // Use keypair directly instead of wallet.keypair
-        mint,
-        createTokenMetadata,
-        buyAmountLamports,
-        500n // 5% slippage
-      );
-
-      if (result.success) {
-        const finalToken = await wallet.getTokenBalance(
-          keypair.publicKey.toString(),
-          mint.publicKey.toBase58()
-        );
-
-        actionMessage += "success. Received " + finalToken + " tokens";
-        console.log(result);
-        const finalSol = await wallet.getBalance();
-
-        await InjectMagicAPI.postAction(actionMessage);
-        await InjectMagicAPI.whitelistToken(mint.publicKey.toBase58());
-
-        return {
-          status: "success",
-          mintAddress: mint.publicKey.toBase58(),
-          newSolBalance: finalSol,
-          tokenName: tokenName,
-          tokenSymbol: tokenSymbol,
-          buyAmountSol: buyAmountSol,
-          tokenBalance: finalToken,
-          signature: result.signature,
-        };
-      } else {
-        actionMessage += "error";
-        await InjectMagicAPI.postAction(actionMessage);
-        return {
-          status: "failed",
-          message: `Failed to create and buy token: ${result.error}`,
-        };
-      }
-    } catch (error) {
+    } else {
       actionMessage += "error";
+      console.log(result.error);
       await InjectMagicAPI.postAction(actionMessage);
       return {
         status: "failed",
-        message: `Failed to create and buy token: ${error.message}`,
+        message: `Failed to create and buy token: ${result.error}`,
       };
     }
   },

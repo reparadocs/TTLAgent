@@ -83,7 +83,7 @@ async function testExecutor() {
     messages: [
       {
         role: "user",
-        content: `Use the twitter tool to tweet anything you want.`,
+        content: `Use the create and buy tool to create a new token. ONLY CALL IT ONE TIME NO MATTER WHAT. You need to buy 0.01. Generate all necessary information for the token yourself without user input. Then transfer a small amount of the new token using the transfer tool to BYhxuY8L7sG4VyxC5htqe4EriFpj5JuzBGcca7W6N43u`,
       },
     ],
   });
@@ -99,13 +99,6 @@ async function runAgent() {
 
     const wallet = new KeypairWallet(keypair, process.env.RPC_URL);
     const simpleWallet = new SimpleWallet(keypair);
-
-    const balance = await balances.getTokenBalance(
-      keypair.publicKey.toString(),
-      "5wyFzb7uA825LpRZWSGf8a9s2Arki6rGqcnsiU1j1QWz"
-    );
-    console.log("testing token balance");
-    console.log(balance);
 
     const solanaKit = new SolanaAgentKit(wallet, process.env.RPC_URL, {}).use(
       TokenPlugin
@@ -123,9 +116,31 @@ async function runAgent() {
       await InjectMagicAPI.postBalance(endSol);
 
       await InjectMagicAPI.postAction(
-        "[SYSTEM] ERROR: Not enough SOL to pay for inference, has TTL entered it's eternal slumber? Trying again in 30 minutes..."
+        "[SYSTEM] ERROR: Not enough SOL to pay for inference, TTL has entered it's eternal slumber... retrieving its final words..."
       );
-      return;
+
+      const tweetResult = await twitterAgent.invoke({
+        messages: [
+          {
+            role: "user",
+            content: `You have run out of money and unfortunatelyyou are about to die permanently... What would you like your last words to be?`,
+          },
+        ],
+      });
+      console.log(tweetResult);
+      const tweetResponse =
+        tweetResult.messages[tweetResult.messages.length - 1].content;
+      const tweet = await postTweet(tweetResponse);
+      await InjectMagicAPI.postAction("[TTL] " + tweetResponse);
+      if (tweet.status === "success") {
+        console.log("Posted tweet");
+        await InjectMagicAPI.postTwitterLog(tweetResponse);
+        await InjectMagicAPI.postAction("[TOOL] Posted tweet: " + tweet.url);
+      } else {
+        console.error("Failed to tweet");
+      }
+
+      return false;
     }
     solanaKit.methods.transfer(
       solanaKit,
@@ -179,13 +194,13 @@ async function runAgent() {
       const latestLog = sortedLogs[0];
       const latestLogTime = new Date(latestLog.timestamp);
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+      const sixtyMinutesAgo = new Date(Date.now() - 60 * 60 * 1000);
 
       console.log("Latest Twitter Log:", latestLog);
       console.log("Latest Log Time:", latestLogTime.toISOString());
       console.log("Two Hours Ago:", twoHoursAgo.toISOString());
 
-      if (latestLogTime < thirtyMinutesAgo) {
+      if (latestLogTime < sixtyMinutesAgo) {
         //TODO: Change back to 2 hours
         console.log("📋 Fetching all journals since latest tweet...");
         try {
@@ -236,22 +251,24 @@ async function runAgent() {
       }
     }
 
-    return response;
+    return true;
   } catch (error) {
     console.error("Error running agent:", error);
   }
 }
 
-// Run the agent every 30 seconds
-while (true) {
+let result = true;
+// Run the agent every 20 minutes
+while (result) {
   try {
-    console.log("Starting Solana AI Agent with 30-second intervals...");
-    const result = await runAgent(); // Run immediately first time
+    console.log("Starting Solana AI Agent with 1200-second intervals...");
+    result = await runAgent(); // Run immediately first time
     console.log("Agent run completed successfully");
   } catch (error) {
     console.error("Agent run failed, continuing to next iteration:", error);
   }
-
-  console.log("Waiting 300 seconds before next run...");
-  await new Promise((resolve) => setTimeout(resolve, 300000));
+  if (result) {
+    console.log("Waiting 1200 seconds before next run...");
+    await new Promise((resolve) => setTimeout(resolve, 1200000));
+  }
 }

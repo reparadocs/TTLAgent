@@ -4,6 +4,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import SimpleWallet from "../utils/wallet.js";
 import InjectMagicAPI from "../utils/api.js";
+import balances from "../utils/balances.js";
 
 const buy = {
   name: "BUY_PUMPFUN_TOKEN",
@@ -71,9 +72,9 @@ const buy = {
     console.log("testing token balance");
     console.log(balance);
     if (result.success) {
-      const finalToken = await wallet.getTokenBalance(
+      const finalToken = await balances.getTokenBalance(
         keypair.publicKey.toString(),
-        mintAddress
+        mint.publicKey.toString()
       );
       actionMessage +=
         "success. New token balance is " + finalToken + " tokens";
