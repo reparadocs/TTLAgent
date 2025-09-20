@@ -31,7 +31,8 @@ const generateSingleTool = (
   description,
   similes,
   examples,
-  schema
+  schema,
+  keypair
 ) => {
   return tool(
     async (inputs) => {
@@ -84,7 +85,8 @@ const generateTools = (keypair) => {
     _transferTool.description,
     _transferTool.similes,
     _transferTool.examples,
-    _transferTool.schema
+    _transferTool.schema,
+    keypair
   );
   const customTools = TOOLS.map((t) =>
     generateSingleTool(
@@ -93,7 +95,8 @@ const generateTools = (keypair) => {
       t.description,
       t.similes,
       t.examples,
-      t.schema
+      t.schema,
+      keypair
     )
   );
   return [...customTools, transferTool];
